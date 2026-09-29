@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+data/
+test/
+node_modules/
+.claude/
