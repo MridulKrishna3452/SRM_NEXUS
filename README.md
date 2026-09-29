@@ -164,6 +164,18 @@ Keys: **Esc** stop · **Space** pause · **→** skip ahead. It is read-only and
 - Re-adding an already claimed skill, re-verifying a verified skill, or re-applying the current status all return the existing record without changes.
 - `npm run db:reset` always produces the same demo state.
 
+## Deploying to Vercel (shareable demo link)
+
+The repo is Vercel-ready: `vercel.json` serves `public/` from the CDN and routes `/api/*` to the Express app in `api/index.js`.
+
+1. Import the GitHub repo in Vercel. Set **Application Preset: Other** and leave the build, output and install fields at their defaults (`vercel.json` sets them).
+2. Add these **Environment Variables**:
+   - `SESSION_SECRET`: a long random string (**required**; the API refuses to start without it in production)
+   - `DEMO_MODE`: `true` (shows the one-click demo accounts and the demo tour)
+3. Deploy.
+
+**How data behaves on Vercel:** serverless functions have no permanent disk, so the SQLite database lives in `/tmp` and is **re-seeded with the demo data on every cold start**. The demo accounts, the demo tour and browsing always work. Anything created on the live site (new accounts, requests, skill verifications) is temporary and can disappear when Vercel starts a new instance. For a live walk-through that creates data, the local server (`npm start`) is the most reliable. For permanent hosted data, use a server host with a disk (e.g. Render or Railway) or move to a hosted database.
+
 ## 8. Checks
 
 ```bash

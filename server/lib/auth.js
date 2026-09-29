@@ -20,17 +20,15 @@ export function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(expected, actual);
 }
 
-// ---- Sessions: random token in an HttpOnly cookie, HMAC of it stored in DB ----
-const tokenHash = (token) => crypto.createHmac('sha256', config.sessionSecret).update(token).digest('hex');
+// ---- Sessions: stateless signed cookie "<payload>.<hmac>" ----
+// The user is re-loaded from the DB on every request, so deactivated accounts are rejected immediately.
+// Stateless tokens keep users signed in across serverless instances (e.g. on Vercel).
+const sign = (data) => crypto.createHmac('sha256', config.sessionSecret).update(data).digest('base64url');
 
 export function createSession(res, userId) {
-  const token = crypto.randomBytes(32).toString('base64url');
   const expires = new Date(Date.now() + config.sessionTtlHours * 3600 * 1000);
-  const db = getDb();
-  db.prepare("DELETE FROM sessions WHERE expires_at < strftime('%Y-%m-%dT%H:%M:%fZ','now')").run();
-  db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?,?,?)')
-    .run(tokenHash(token), userId, expires.toISOString());
-  res.cookie(COOKIE_NAME, token, {
+  const payload = Buffer.from(JSON.stringify({ u: userId, e: expires.getTime(), n: crypto.randomBytes(8).toString('hex') })).toString('base64url');
+  res.cookie(COOKIE_NAME, `${payload}.${sign(payload)}`, {
     httpOnly: true,
     sameSite: 'lax',
     secure: config.cookieSecure,
@@ -39,10 +37,20 @@ export function createSession(res, userId) {
   });
 }
 
-export function destroySession(req, res) {
-  const token = readCookie(req, COOKIE_NAME);
-  if (token) getDb().prepare('DELETE FROM sessions WHERE token_hash = ?').run(tokenHash(token));
-  res.clearCookie(COOKIE_NAME, { path: '/' });
+export function destroySession(_req, res) {
+  res.clearCookie(COOKIE_NAME, { path: '/', httpOnly: true, sameSite: 'lax', secure: config.cookieSecure });
+}
+
+function readSession(token) {
+  const [payload, mac] = String(token).split('.');
+  if (!payload || !mac) return null;
+  const expected = Buffer.from(sign(payload));
+  const given = Buffer.from(mac);
+  if (expected.length !== given.length || !crypto.timingSafeEqual(expected, given)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return Number.isInteger(data.u) && data.e > Date.now() ? data.u : null;
+  } catch { return null; }
 }
 
 function readCookie(req, name) {
@@ -61,13 +69,13 @@ function readCookie(req, name) {
 export function loadUser(req, _res, next) {
   req.user = null;
   const token = readCookie(req, COOKIE_NAME);
-  if (token) {
+  const userId = token ? readSession(token) : null;
+  if (userId) {
     const row = getDb().prepare(`
       SELECT u.id, u.name, u.email, u.role, u.department, u.year_of_study, u.interests, u.is_active, u.created_at,
              m.id AS mentor_id
-      FROM sessions s JOIN users u ON u.id = s.user_id
-      LEFT JOIN mentors m ON m.user_id = u.id
-      WHERE s.token_hash = ? AND s.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now')`).get(tokenHash(token));
+      FROM users u LEFT JOIN mentors m ON m.user_id = u.id
+      WHERE u.id = ?`).get(userId);
     if (row && row.is_active) req.user = row;
   }
   next();

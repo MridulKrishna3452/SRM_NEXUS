@@ -5,7 +5,7 @@
   "description": "SRM Nexus — campus mentorship & opportunity request platform (SRMIST KTR hackathon prototype)",
   "type": "module",
   "engines": {
-    "node": ">=22.13.0"
+    "node": "22.x"
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server/index.js",
