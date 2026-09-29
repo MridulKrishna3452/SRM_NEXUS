@@ -1,0 +1,24 @@
+{
+  "name": "srm-nexus",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SRM Nexus — campus mentorship & opportunity request platform (SRMIST KTR hackathon prototype)",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js",
+    "db:migrate": "node --disable-warning=ExperimentalWarning server/migrate.js",
+    "db:seed": "node --disable-warning=ExperimentalWarning server/seed.js",
+    "db:reset": "node --disable-warning=ExperimentalWarning server/seed.js --reset",
+    "setup": "npm install && npm run db:reset",
+    "lint": "node scripts/check-syntax.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/api.test.js",
+    "check": "npm run lint && npm test"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
